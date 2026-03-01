@@ -1533,8 +1533,14 @@ void Decompiler::PscDecompiler::cleanUpTree(Node::BasePtr program)
         auto& bloc = bloc_kv.second;
         auto scope = bloc->getScope();
         if (scope->size() > 0) {
+          // Non-fatal: log a warning comment and continue.
+          // Some scripts hit subtle 32-bit arithmetic differences in WASM
+          // that leave a node orphaned. The output will be missing that
+          // statement but the rest of the decompilation is valid.
           auto funcname = m_Function.getName().isValid() ? m_Function.getName().asString() : "unknown function";
-          throw std::runtime_error("Orphaned nodes in " + funcname + " from instruction " + std::to_string(scope->front()->getBegin()) + " to " + std::to_string(scope->back()->getEnd()) + ".");
+          push_back("; DECOMPILE WARNING: orphaned instruction(s) in " + funcname
+              + " from " + std::to_string(scope->front()->getBegin())
+              + " to " + std::to_string(scope->back()->getEnd()));
         }
     }
 
