@@ -206,6 +206,9 @@ std::vector<uint16_t> Pex::DebugInfo::FunctionInfo::getLineNumbersForIpRange(int
   if (m_LineNumbers.empty() || begin > m_LineNumbers.size() - 1) {
     return {};
   }
+  // Clamp end to valid range (guards against size_t(-1) on 32-bit WASM becoming huge positive int64_t)
+  if (end >= (int64_t)m_LineNumbers.size())
+    end = (int64_t)m_LineNumbers.size() - 1;
   std::vector<uint16_t> result;
   int64_t line = -1;
   for (auto i = begin; i <= end; ++i)
