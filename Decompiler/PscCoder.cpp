@@ -602,6 +602,7 @@ void Decompiler::PscCoder::writeFunction(int i, const Pex::Function &function, c
         write(stream.str());
         writeDocString(i, function);
     } else {
+        try {
         auto decomp = PscDecompiler(function, object, functionInfo, m_CommentAsm, m_TraceDecompilation, m_DumpTree,
                                     m_OutputDir);
         if (decomp.isDebugFunction()) {
@@ -694,6 +695,16 @@ void Decompiler::PscCoder::writeFunction(int i, const Pex::Function &function, c
           write(indent(i) << "EndEvent");
         else
           write(indent(i) << "EndFunction");
+        } catch (std::exception& ex) {
+            writeUserFlag(stream, function, pex);
+            write(stream.str());
+            writeDocString(i, function);
+            write(indent(i+1) << "; DECOMPILE ERROR: " << ex.what());
+            if (isEvent)
+              write(indent(i) << "EndEvent");
+            else
+              write(indent(i) << "EndFunction");
+        }
     }
 
 }
