@@ -33,6 +33,8 @@ Decompiler::PscCodeGenerator::PscCodeGenerator(Decompiler::PscDecompiler* decomp
 
 void Decompiler::PscCodeGenerator::newLine()
 {
+    static int nlCount = 0;
+    auto nl0 = std::chrono::high_resolution_clock::now();
 
     if (!m_ExperimentalSyntaxWarning.empty()) {
         m_Result += " ";
@@ -44,16 +46,30 @@ void Decompiler::PscCodeGenerator::newLine()
         }
         m_ExperimentalSyntaxWarning.clear();
     }
+    auto nl1 = std::chrono::high_resolution_clock::now();
     auto nums = getDebugInfoLineNumbers(minIpForCurrentLine, maxIpForCurrentLine);
+    auto nl2 = std::chrono::high_resolution_clock::now();
     resetIpsForCurrentLine();
     m_Decompiler->push_back(m_Result);
+    auto nl3 = std::chrono::high_resolution_clock::now();
     m_Decompiler->addLineMapping(m_Decompiler->size() - 1, nums);
+    auto nl4 = std::chrono::high_resolution_clock::now();
 
     m_Result.clear();
     for (auto i = 0; i < m_Level; ++i)
     {
         m_Result += "  ";
     }
+    auto nl5 = std::chrono::high_resolution_clock::now();
+
+    auto us = [](auto a, auto b){ return std::chrono::duration_cast<std::chrono::microseconds>(b - a).count(); };
+    auto total = us(nl0, nl5);
+    if (total > 1000) {
+        printf("      [newLine#%d] warn=%lldus dbg=%lldus push=%lldus map=%lldus indent=%lldus total=%lldus\n",
+            nlCount, us(nl0,nl1), us(nl1,nl2), us(nl2,nl3), us(nl3,nl4), us(nl4,nl5), total);
+        fflush(stdout);
+    }
+    nlCount++;
 }
 
 void Decompiler::PscCodeGenerator::visit(Node::Scope* node)
