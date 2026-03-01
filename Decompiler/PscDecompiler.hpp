@@ -87,6 +87,7 @@ protected:
     std::string m_OutputDir;
     std::ofstream m_Log;
     Pex::StringTable m_TempTable;
+    bool m_HasGuards{false};
 
     // Map of decompiled lines to the range of (potentially multiple) original lines that were in the debug info
     DebugLineMap m_LineMap;
@@ -94,6 +95,9 @@ protected:
     void rebuildLocks(Node::BasePtr &program);
     void RemoveUnlocksFromBody(Node::BasePtr &body, const Node::BasePtr &matchingLock);
     void LiftLockBody(std::shared_ptr<Node::Base> &guard);
+
+    // Single-pass tree cleanup helper (replaces 7 separate WithNode passes)
+    void cleanUpNode(Node::BasePtr node);
 
 };
 }
