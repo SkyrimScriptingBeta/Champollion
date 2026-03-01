@@ -25,7 +25,7 @@ namespace Decompiler {
 class PscCodeBlock
 {
 public:
-    static const size_t END = 0xFFFFFFFF;
+    static const size_t END = 0x7FFFFFFF;
 
     void addLockGuard(Pex::StringTable::Index index);
 
