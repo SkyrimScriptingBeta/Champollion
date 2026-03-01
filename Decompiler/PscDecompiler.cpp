@@ -118,25 +118,44 @@ Decompiler::PscDecompiler::PscDecompiler(const Pex::Function &function, const Pe
         m_TempTable.push_back("clear");
         m_TempTable.push_back("GetMatchingStructs"); // TODO: VERIFY: Need to verify syntax when CK for Starfield comes out
 
+        auto t0 = std::chrono::high_resolution_clock::now();
+        auto tp = t0;
+
         //findReplacedVars();
         findVarTypes();
+        auto t1 = std::chrono::high_resolution_clock::now();
 
         createFlowBlocks();
+        auto t2 = std::chrono::high_resolution_clock::now();
 
         rebuildExpressionsInBlocks();
+        auto t3 = std::chrono::high_resolution_clock::now();
 
         rebuildBooleanOperators(0, m_Function.getInstructions().size());
+        auto t4 = std::chrono::high_resolution_clock::now();
 
         Node::BasePtr programTree = rebuildControlFlow(0, m_Function.getInstructions().size());
+        auto t5 = std::chrono::high_resolution_clock::now();
 
         declareVariables(programTree);
+        auto t6 = std::chrono::high_resolution_clock::now();
 
         if (m_HasGuards)
             rebuildLocks(programTree);
+        auto t7 = std::chrono::high_resolution_clock::now();
 
         cleanUpTree(programTree);
+        auto t8 = std::chrono::high_resolution_clock::now();
 
         generateCode(programTree);
+        auto t9 = std::chrono::high_resolution_clock::now();
+
+        auto ms = [](auto a, auto b){ return std::chrono::duration_cast<std::chrono::milliseconds>(b - a).count(); };
+        printf("[DECOMPILE %s] fv=%lld fb=%lld re=%lld bo=%lld cf=%lld dv=%lld lk=%lld cu=%lld gc=%lld total=%lld ins=%zu\n",
+            m_Function.getName().asString().c_str(),
+            ms(t0,t1), ms(t1,t2), ms(t2,t3), ms(t3,t4), ms(t4,t5), ms(t5,t6), ms(t6,t7), ms(t7,t8), ms(t8,t9), ms(t0,t9),
+            m_Function.getInstructions().size());
+        fflush(stdout);
 
     }
 }
