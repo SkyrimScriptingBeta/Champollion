@@ -118,54 +118,25 @@ Decompiler::PscDecompiler::PscDecompiler(const Pex::Function &function, const Pe
         m_TempTable.push_back("clear");
         m_TempTable.push_back("GetMatchingStructs"); // TODO: VERIFY: Need to verify syntax when CK for Starfield comes out
 
-        auto funcName = m_Function.getName().isValid() ? m_Function.getName().asString() : "?";
-        auto instrCount = m_Function.getInstructions().size();
-        auto t_start = std::chrono::high_resolution_clock::now();
-
         //findReplacedVars();
         findVarTypes();
-        auto t1 = std::chrono::high_resolution_clock::now();
 
         createFlowBlocks();
-        auto t2 = std::chrono::high_resolution_clock::now();
 
         rebuildExpressionsInBlocks();
-        auto t3 = std::chrono::high_resolution_clock::now();
 
         rebuildBooleanOperators(0, m_Function.getInstructions().size());
-        auto t4 = std::chrono::high_resolution_clock::now();
 
         Node::BasePtr programTree = rebuildControlFlow(0, m_Function.getInstructions().size());
-        auto t5 = std::chrono::high_resolution_clock::now();
 
         declareVariables(programTree);
-        auto t6 = std::chrono::high_resolution_clock::now();
 
         if (m_HasGuards)
             rebuildLocks(programTree);
-        auto t7 = std::chrono::high_resolution_clock::now();
 
         cleanUpTree(programTree);
-        auto t8 = std::chrono::high_resolution_clock::now();
 
         generateCode(programTree);
-        auto t9 = std::chrono::high_resolution_clock::now();
-
-        auto totalMs = std::chrono::duration_cast<std::chrono::milliseconds>(t9 - t_start).count();
-        if (totalMs > 5) { // Only log functions that take >5ms
-            printf("[PROFILE] %s::%s (%zu instr, %lldms) vt=%lld fb=%lld re=%lld bo=%lld cf=%lld dv=%lld lk=%lld cu=%lld gc=%lld\n",
-                m_Object.getName().asString().c_str(), funcName.c_str(), instrCount, totalMs,
-                (long long)std::chrono::duration_cast<std::chrono::milliseconds>(t1-t_start).count(),
-                (long long)std::chrono::duration_cast<std::chrono::milliseconds>(t2-t1).count(),
-                (long long)std::chrono::duration_cast<std::chrono::milliseconds>(t3-t2).count(),
-                (long long)std::chrono::duration_cast<std::chrono::milliseconds>(t4-t3).count(),
-                (long long)std::chrono::duration_cast<std::chrono::milliseconds>(t5-t4).count(),
-                (long long)std::chrono::duration_cast<std::chrono::milliseconds>(t6-t5).count(),
-                (long long)std::chrono::duration_cast<std::chrono::milliseconds>(t7-t6).count(),
-                (long long)std::chrono::duration_cast<std::chrono::milliseconds>(t8-t7).count(),
-                (long long)std::chrono::duration_cast<std::chrono::milliseconds>(t9-t8).count());
-            fflush(stdout);
-        }
 
     }
 }

@@ -34,21 +34,24 @@ void Decompiler::PscCodeGenerator::newLine()
 {
 
     if (!m_ExperimentalSyntaxWarning.empty()) {
-        m_Result << " " << Decompiler::WARNING_COMMENT_PREFIX << " WARNING: Experimental syntax, may be incorrect: ";
-        for (auto warn: m_ExperimentalSyntaxWarning){
-            m_Result << warn << " ";
+        m_Result += " ";
+        m_Result += Decompiler::WARNING_COMMENT_PREFIX;
+        m_Result += " WARNING: Experimental syntax, may be incorrect: ";
+        for (auto& warn: m_ExperimentalSyntaxWarning){
+            m_Result += warn;
+            m_Result += " ";
         }
         m_ExperimentalSyntaxWarning.clear();
     }
     auto nums = getDebugInfoLineNumbers(minIpForCurrentLine, maxIpForCurrentLine);
     resetIpsForCurrentLine();
-    m_Decompiler->push_back(m_Result.str());
+    m_Decompiler->push_back(m_Result);
     m_Decompiler->addLineMapping(m_Decompiler->size() - 1, nums);
 
-    m_Result = std::ostringstream();
+    m_Result.clear();
     for (auto i = 0; i < m_Level; ++i)
     {
-        m_Result << ' ' << ' ';
+        m_Result += "  ";
     }
 }
 
@@ -96,26 +99,28 @@ void Decompiler::PscCodeGenerator::visit(Node::BinaryOperator* node)
     }
     if (parenOnLeft)
     {
-        m_Result << "(";
+        m_Result += "(";
     }
     node->getLeft()->visit(this);
     if (parenOnLeft)
     {
-        m_Result << ")";
+        m_Result += ")";
     }
-    m_Result << " " << node->getOperator() << " ";
+    m_Result += " ";
+    m_Result += node->getOperator();
+    m_Result += " ";
     if (parenOnRight)
     {
-        m_Result << "(";
+        m_Result += "(";
     }
     if (node->getOperator() == "is" && node->getRight()->is<Node::IdentifierString>()) {
-      m_Result << PscCoder::mapType(node->getRight()->as<Node::IdentifierString>()->getIdentifier());
+      m_Result += PscCoder::mapType(node->getRight()->as<Node::IdentifierString>()->getIdentifier());
     } else {
       node->getRight()->visit(this);
     }
     if (parenOnRight)
     {
-        m_Result << ")";
+        m_Result += ")";
     }
 }
 
@@ -124,22 +129,22 @@ void Decompiler::PscCodeGenerator::visit(Node::UnaryOperator* node)
     addIpRangeForCurrentLine(node->getBegin(), node->getEnd());
     bool paren = node->getPrecedence() < node->getValue()->getPrecedence();
 
-    m_Result << node->getOperator();
+    m_Result += node->getOperator();
     if (paren)
     {
-        m_Result << "(";
+        m_Result += "(";
     }
     node->getValue()->visit(this);
     if (paren)
     {
-        m_Result << ")";
+        m_Result += ")";
     }
 }
 void Decompiler::PscCodeGenerator::visit(Node::Assign* node)
 {
     addIpRangeForCurrentLine(node->getBegin(), node->getEnd());
     node->getDestination()->visit(this);
-    m_Result << " = ";
+    m_Result += " = ";
     node->getValue()->visit(this);
 }
 
@@ -147,7 +152,9 @@ void Decompiler::PscCodeGenerator::visit(Node::AssignOperator* node)
 {
     addIpRangeForCurrentLine(node->getBegin(), node->getEnd());
     node->getDestination()->visit(this);
-    m_Result << " " << node->getOperator() << " ";
+    m_Result += " ";
+    m_Result += node->getOperator();
+    m_Result += " ";
     node->getValue()->visit(this);
 }
 
@@ -164,14 +171,15 @@ void Decompiler::PscCodeGenerator::visit(Node::Cast* node)
 
     if (paren)
     {
-        m_Result << "(";
+        m_Result += "(";
     }
     node->getValue()->visit(this);
     if (paren)
     {
-        m_Result << ")";
+        m_Result += ")";
     }
-    m_Result << " as " << PscCoder::mapType(node->getType().asString());
+    m_Result += " as ";
+    m_Result += PscCoder::mapType(node->getType().asString());
 }
 
 void Decompiler::PscCodeGenerator::visit(Node::CallMethod* node)
@@ -181,20 +189,22 @@ void Decompiler::PscCodeGenerator::visit(Node::CallMethod* node)
 
     if (paren)
     {
-        m_Result << "(";
+        m_Result += "(";
     }
     if (node->getObject()->is<Node::IdentifierString>()) {
-        m_Result << PscCoder::mapType(node->getObject()->as<Node::IdentifierString>()->getIdentifier());
+        m_Result += PscCoder::mapType(node->getObject()->as<Node::IdentifierString>()->getIdentifier());
     } else {
         node->getObject()->visit(this);
     }
     if (paren)
     {
-        m_Result << ")";
+        m_Result += ")";
     }
-    m_Result << "." << node->getMethod() << "(";
+    m_Result += ".";
+    m_Result += node->getMethod();
+    m_Result += "(";
     node->getParameters()->visit(this);
-    m_Result << ")";
+    m_Result += ")";
     if (node->isExperimentalSyntax()) {
         m_ExperimentalSyntaxWarning.push_back(node->getMethod().asString());
     }
@@ -208,7 +218,7 @@ void Decompiler::PscCodeGenerator::visit(Node::Params *node)
     {
         if (not_first)
         {
-            m_Result << ", ";
+            m_Result += ", ";
         }
         else
         {
@@ -221,7 +231,7 @@ void Decompiler::PscCodeGenerator::visit(Node::Params *node)
 void Decompiler::PscCodeGenerator::visit(Node::Return* node)
 {
     addIpRangeForCurrentLine(node->getBegin(), node->getEnd());
-    m_Result << "Return ";
+    m_Result += "Return ";
     if (node->getValue())
     {
         node->getValue()->visit(this);
@@ -233,30 +243,34 @@ void Decompiler::PscCodeGenerator::visit(Node::PropertyAccess *node) {
     bool paren = node->getPrecedence() < node->getObject()->getPrecedence();
 
     if (paren) {
-        m_Result << "(";
+        m_Result += "(";
     }
     node->getObject()->visit(this);
     if (paren)
     {
-        m_Result << ")";
+        m_Result += ")";
     }
-    m_Result << "." << node->getProperty();
+    m_Result += ".";
+    m_Result += node->getProperty();
 }
 
 void Decompiler::PscCodeGenerator::visit(Node::StructCreate* node)
 {
     addIpRangeForCurrentLine(node->getBegin(), node->getEnd());
-    m_Result << "new " << PscCoder::mapType(node->getType().asString());
+    m_Result += "new ";
+    m_Result += PscCoder::mapType(node->getType().asString());
 }
 
 void Decompiler::PscCodeGenerator::visit(Node::ArrayCreate* node)
 {
     addIpRangeForCurrentLine(node->getBegin(), node->getEnd());
     std::string type = PscCoder::mapType(node->getType().asString());
-    m_Result << "new " << type.substr(0, type.length() - 2) << "[";
+    m_Result += "new ";
+    m_Result += type.substr(0, type.length() - 2);
+    m_Result += "[";
 
     node->getIndex()->visit(this);
-    m_Result << "]";
+    m_Result += "]";
 }
 
 void Decompiler::PscCodeGenerator::visit(Node::ArrayLength* node)
@@ -266,14 +280,14 @@ void Decompiler::PscCodeGenerator::visit(Node::ArrayLength* node)
 
     if (paren)
     {
-        m_Result << "(";
+        m_Result += "(";
     }
     node->getArray()->visit(this);
     if (paren)
     {
-        m_Result << ")";
+        m_Result += ")";
     }
-    m_Result << ".Length";
+    m_Result += ".Length";
 }
 
 void Decompiler::PscCodeGenerator::visit(Node::ArrayAccess *node)
@@ -283,16 +297,16 @@ void Decompiler::PscCodeGenerator::visit(Node::ArrayAccess *node)
 
     if (paren)
     {
-        m_Result << "(";
+        m_Result += "(";
     }
     node->getArray()->visit(this);
     if (paren)
     {
-        m_Result << ")";
+        m_Result += ")";
     }
-    m_Result << "[";
+    m_Result += "[";
     node->getIndex()->visit(this);
-    m_Result << "]";
+    m_Result += "]";
 }
 
 void Decompiler::PscCodeGenerator::visit(Node::Constant* node)
@@ -300,21 +314,21 @@ void Decompiler::PscCodeGenerator::visit(Node::Constant* node)
     addIpRangeForCurrentLine(node->getBegin(), node->getEnd());
     auto& value = node->getConstant();
 
-    m_Result << value.toString();
+    m_Result += value.toString();
 }
 
 void Decompiler::PscCodeGenerator::visit(Node::IdentifierString *node)
 {
     addIpRangeForCurrentLine(node->getBegin(), node->getEnd());
     if (node->getIdentifier() == "self")
-        m_Result << "Self";
+        m_Result += "Self";
     else
-        m_Result << node->getIdentifier();
+        m_Result += node->getIdentifier();
 }
 
 void Decompiler::PscCodeGenerator::visit(Node::While* node)
 {
-    m_Result << "While ";
+    m_Result += "While ";
     node->getCondition()->visit(this);
     m_Level++;
     newLine();
@@ -327,14 +341,14 @@ void Decompiler::PscCodeGenerator::visit(Node::While* node)
     }
     // EndWhile does not have valid debug line numbers, reset minIpForCurrentLine and maxIpForCurrentLine
     resetIpsForCurrentLine();
-    m_Result << "EndWhile";
+    m_Result += "EndWhile";
 }
 
 void Decompiler::PscCodeGenerator::visit(Node::IfElse* node)
 {
     addIpRangeForCurrentLine(node->getBegin(), node->getEnd());
     auto cond = node->getCondition();
-    m_Result << "If ";
+    m_Result += "If ";
     node->getCondition()->visit(this);
     m_Level++;
     newLine();
@@ -347,7 +361,7 @@ void Decompiler::PscCodeGenerator::visit(Node::IfElse* node)
     {
         m_Decompiler->decodeToAsm(m_Level, childNode->getBegin()-1, childNode->getEnd());
         auto elseIf = childNode->as<Node::IfElse>();
-        m_Result << "ElseIf ";
+        m_Result += "ElseIf ";
         elseIf->getCondition()->visit(this);
         m_Level++;
         newLine();
@@ -359,7 +373,7 @@ void Decompiler::PscCodeGenerator::visit(Node::IfElse* node)
     m_Decompiler->decodeToAsm(m_Level, lastBody->getEnd() + 1, lastBody->getEnd() + 1);
     if (node->getElse()->size() != 0)
     {
-        m_Result << "Else";
+        m_Result += "Else";
         m_Level++;
         // Else do not have valid debug line numbers, reset minIpForCurrentLine and maxIpForCurrentLine
         resetIpsForCurrentLine();
@@ -370,18 +384,19 @@ void Decompiler::PscCodeGenerator::visit(Node::IfElse* node)
     }
     // Endif does not have valid debug line numbers, reset minIpForCurrentLine and maxIpForCurrentLine
     resetIpsForCurrentLine();
-    m_Result << "EndIf";
+    m_Result += "EndIf";
 }
 
 void Decompiler::PscCodeGenerator::visit(Node::Declare *node)
 {
     addIpRangeForCurrentLine(node->getEnd(), node->getEnd());
-    m_Result << PscCoder::mapType(node->getType().asString()) << " ";
+    m_Result += PscCoder::mapType(node->getType().asString());
+    m_Result += " ";
     node->getObject()->visit(this);
 }
 
 void Decompiler::PscCodeGenerator::visit(Node::GuardStatement *node) {
-    m_Result << "Guard ";
+    m_Result += "Guard ";
     addIpRangeForCurrentLine(node->getBegin(), node->getBegin());
     node->getParameters()->visit(this);
     m_Level++;
@@ -391,12 +406,12 @@ void Decompiler::PscCodeGenerator::visit(Node::GuardStatement *node) {
     node->getBody()->visit(this);
     m_Level--;
     newLine();
-    m_Result << "EndGuard";
+    m_Result += "EndGuard";
     m_ExperimentalSyntaxWarning.push_back("EndGuard");
 }
 
 void Decompiler::PscCodeGenerator::visit(Node::TryGuard *node) {
-    m_Result << "TryGuard ";
+    m_Result += "TryGuard ";
     addIpRangeForCurrentLine(node->getBegin(), node->getBegin());
     node->getParameters()->visit(this);
     m_Level++;
@@ -406,7 +421,7 @@ void Decompiler::PscCodeGenerator::visit(Node::TryGuard *node) {
     node->getBody()->visit(this);
     m_Level--;
     newLine();
-    m_Result << "EndGuard";
+    m_Result += "EndGuard";
     m_ExperimentalSyntaxWarning.push_back("EndGuard");
 
 }
@@ -435,4 +450,3 @@ void Decompiler::PscCodeGenerator::resetIpsForCurrentLine() {
 std::vector<uint16_t> Decompiler::PscCodeGenerator::getDebugInfoLineNumbers(int64_t begin, int64_t end) {
     return m_Decompiler->getDebugInfo().getLineNumbersForIpRange(begin, end);
 }
-

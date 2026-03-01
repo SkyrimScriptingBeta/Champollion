@@ -29,8 +29,6 @@ void Decompiler::Coder::write(const std::string &line)
 {
     m_Writer->writeLine(line);
 }
-template<class T> static constexpr bool IsAnOstream = std::is_base_of<std::decay_t<T>, std::ostream>::value;
-template<class T> static constexpr bool IsAnOStringstream = std::is_base_of<std::decay_t<T>, std::ostringstream>::value;
 
 /**
  * @brief Write the content of a ostringstream.
@@ -46,16 +44,17 @@ void Decompiler::Coder::write(std::ostream&& stream)
 }
 
 /**
- * @brief Creates an ostringstream and prepare it with identation.
+ * @brief Creates a string with indentation.
  * @param i Indentation level to apply.
  * @return
  */
-std::ostringstream Decompiler::Coder::indent(int i)
+std::string Decompiler::Coder::indent(int i)
 {
-    std::ostringstream result;
+    std::string result;
+    result.reserve(i * 2);
     for(; i != 0; --i)
     {
-        result << ' ' << ' ';
+        result += "  ";
     }
     return result;
 }

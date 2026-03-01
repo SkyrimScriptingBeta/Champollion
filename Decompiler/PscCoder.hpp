@@ -39,7 +39,7 @@ protected:
                        const Pex::Binary &pex, const Pex::DebugInfo::FunctionInfo *functionInfo,
                        const std::string &name = "");
 
-    void writeUserFlag(std::ostream &stream, const Pex::UserFlagged& flagged, const Pex::Binary& pex);
+    void writeUserFlag(std::string &line, const Pex::UserFlagged& flagged, const Pex::Binary& pex);
     void writeDocString(int i, const Pex::DocumentedItem& item);
 
 protected:

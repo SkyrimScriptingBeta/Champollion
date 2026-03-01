@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <sstream>
+#include <string>
 
 #include "OutputWriter.hpp"
 #include "Pex/Binary.hpp"
@@ -26,7 +27,7 @@ protected:
     void write(std::ostream&& stream);
 
 
-    std::ostringstream indent(int i);
+    std::string indent(int i);
 
     std::unique_ptr<OutputWriter> m_Writer;
 };
