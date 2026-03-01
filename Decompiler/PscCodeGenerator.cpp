@@ -201,7 +201,7 @@ void Decompiler::PscCodeGenerator::visit(Node::CallMethod* node)
         m_Result += ")";
     }
     m_Result += ".";
-    m_Result += node->getMethod();
+    m_Result += node->getMethod().asString();
     m_Result += "(";
     node->getParameters()->visit(this);
     m_Result += ")";
@@ -251,7 +251,7 @@ void Decompiler::PscCodeGenerator::visit(Node::PropertyAccess *node) {
         m_Result += ")";
     }
     m_Result += ".";
-    m_Result += node->getProperty();
+    m_Result += node->getProperty().asString();
 }
 
 void Decompiler::PscCodeGenerator::visit(Node::StructCreate* node)
