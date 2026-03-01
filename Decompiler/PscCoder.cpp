@@ -7,7 +7,6 @@
 #include <iomanip>
 #include <locale>
 #include <map>
-#include <sstream>
 #include <string>
 #include <regex>
 
@@ -31,7 +30,7 @@ Decompiler::PscCoder::PscCoder( OutputWriter* writer,
                                 bool commentAsm = false,
                                 bool writeHeader = false,
                                 bool traceDecompilation = false,
-                                bool dumpTree = true,
+                                bool dumpTree = true,   
                                 bool writeDebugFuncs = false,
                                 bool printDebugLineNo = false,
                                 std::string traceDir = ""):
@@ -44,7 +43,7 @@ Decompiler::PscCoder::PscCoder( OutputWriter* writer,
     m_OutputDir(traceDir),
     m_PrintDebugLineNo(printDebugLineNo)
 {
-
+    
 }
 
 /**
@@ -78,7 +77,7 @@ Decompiler::PscCoder::~PscCoder()
  */
 void Decompiler::PscCoder::code(const Pex::Binary &pex)
 {
-    if (m_WriteHeader)
+    if (m_WriteHeader) 
     {
         writeHeader(pex);
     }
@@ -142,26 +141,20 @@ void Decompiler::PscCoder::writeHeader(const Pex::Binary &pex)
     auto& header = pex.getHeader();
     auto& debug  = pex.getDebugInfo();
     write(";/ Decompiled by Champollion " + std::string(CHAMPOLLION_VERSION_STRING));
-    write(indent(0) + "PEX format v" + std::to_string((int)header.getMajorVersion()) + "." + std::to_string((int)header.getMinorVersion()) + " GameID: " + std::to_string(header.getGameID()));
-    write(indent(0) + "Source   : " + header.getSourceFileName());
+    write(indent(0) << "PEX format v" << (int)header.getMajorVersion() << "." << (int)header.getMinorVersion() << " GameID: " << header.getGameID());
+    write(indent(0) << "Source   : " << header.getSourceFileName());
     if (debug.getModificationTime() != 0)
     {
-        auto line = indent(0) + "Modified : ";
-        { std::ostringstream tmp; tmp << std::put_time(std::localtime(&debug.getModificationTime()), "%Y-%m-%d %H:%M:%S"); line += tmp.str(); }
-        write(line);
+        write(indent(0) << "Modified : " << std::put_time(std::localtime(&debug.getModificationTime()), "%Y-%m-%d %H:%M:%S"));
         //for (auto& f : debug.getFunctionInfos()) {
-        //  write(indent(0) + f.getObjectName().asString() + ":" + f.getStateName().asString() + ":" + f.getFunctionName().asString() + " type: " + std::to_string((int)f.getFunctionType()));
+        //  write(indent(0) << f.getObjectName().asString() << ":" << f.getStateName().asString() << ":" << f.getFunctionName().asString() << " type: " << (int)f.getFunctionType());
         //  for (auto& l : f.getLineNumbers())
-        //    write(indent(1) + "Line: " + std::to_string(l));
+        //    write(indent(1) << "Line: " << l);
         //}
     }
-    {
-        auto line = indent(0) + "Compiled : ";
-        { std::ostringstream tmp; tmp << std::put_time(std::localtime(&header.getCompilationTime()), "%Y-%m-%d %H:%M:%S"); line += tmp.str(); }
-        write(line);
-    }
-    write(indent(0) + "User     : " + header.getUserName());
-    write(indent(0) + "Computer : " + header.getComputerName());
+    write(indent(0) << "Compiled : " << std::put_time(std::localtime(&header.getCompilationTime()), "%Y-%m-%d %H:%M:%S"));
+    write(indent(0) << "User     : " << header.getUserName());
+    write(indent(0) << "Computer : " << header.getComputerName());
     write("/;");
 }
 
@@ -194,21 +187,21 @@ bool Decompiler::PscCoder::isNativeObject(const Pex::Object &object, const Pex::
  */
 void Decompiler::PscCoder::writeObject(const Pex::Object &object, const Pex::Binary &pex)
 {
-    auto line = indent(0);
-    line += "ScriptName " + object.getName().asString();
+    auto stream = indent(0);
+    stream <<"ScriptName " << object.getName().asString();
     if (! object.getParentClassName().asString().empty())
     {
-        line += " Extends " + object.getParentClassName().asString();
+        stream << " Extends " << object.getParentClassName().asString();
     }
 
     if (isNativeObject(object, pex.getGameType()))
-        line += " Native";
+        stream << " Native";
 
     if (object.getConstFlag())
-      line += " Const";
+      stream << " Const";
 
-    writeUserFlag(line, object, pex);
-    write(line);
+    writeUserFlag(stream, object, pex);
+    write(stream.str());
 
     writeDocString(0, object);
 
@@ -247,7 +240,7 @@ void Decompiler::PscCoder::writeObject(const Pex::Object &object, const Pex::Bin
 */
 void Decompiler::PscCoder::writeStructs(const Pex::Object& object, const Pex::Binary& pex) {
     for (auto& sInfo : object.getStructInfos()) {
-        write(indent(0) + "Struct " + sInfo.getName().asString());
+        write(indent(0) << "Struct " << sInfo.getName().asString());
 
         bool foundInfo = false;
         if (pex.getDebugInfo().getStructOrders().size()) {
@@ -287,7 +280,7 @@ void Decompiler::PscCoder::writeStructs(const Pex::Object& object, const Pex::Bi
                 writeStructMember(mem, pex);
         }
 
-        write(indent(0) + "EndStruct");
+        write(indent(0) << "EndStruct");
         write("");
     }
 }
@@ -299,16 +292,16 @@ void Decompiler::PscCoder::writeStructs(const Pex::Object& object, const Pex::Bi
 */
 void Decompiler::PscCoder::writeStructMember(const Pex::StructInfo::Member& member, const Pex::Binary& pex)
 {
-    auto line = indent(1);
-    line += mapType(member.getTypeName().asString()) + " " + member.getName().asString();
+    auto stream = indent(1);
+    stream << mapType(member.getTypeName().asString()) << " " << member.getName().asString();
 
     if (member.getValue().getType() != Pex::ValueType::None) {
-        line += " = " + member.getValue().toString();
+        stream << " = " << member.getValue().toString();
     }
-    writeUserFlag(line, member, pex);
+    writeUserFlag(stream, member, pex);
     if (member.getConstFlag())
-      line += " Const";
-    write(line);
+      stream << " Const";
+    write(stream.str());
     writeDocString(1, member);
 }
 
@@ -337,10 +330,10 @@ void Decompiler::PscCoder::writeProperties(const Pex::Object &object, const Pex:
                 if (propGroup.getObjectName() == object.getName()) {
                     int propertyIndent = 0;
                     if (!propGroup.getGroupName().asString().empty()) {
-                        auto line = indent(0);
-                        line += "Group " + propGroup.getGroupName().asString();
-                        writeUserFlag(line, propGroup, pex);
-                        write(line);
+                        auto stream = indent(0);
+                        stream << "Group " << propGroup.getGroupName();
+                        writeUserFlag(stream, propGroup, pex);
+                        write(stream.str());
                         writeDocString(0, propGroup);
                         propertyIndent = 1;
                     }
@@ -361,7 +354,7 @@ void Decompiler::PscCoder::writeProperties(const Pex::Object &object, const Pex:
                     }
 
                     if (!propGroup.getGroupName().asString().empty()) {
-                        write(indent(0) + "EndGroup");
+                        write(indent(0) << "EndGroup");
                         write("");
                     }
                 }
@@ -386,7 +379,7 @@ FallbackPropertyOrder:
 void Decompiler::PscCoder::writeProperty(int i, const Pex::Property& prop, const Pex::Object &object, const Pex::Binary& pex)
 {
     const auto noState = pex.getStringTable().findIdentifier("");
-    auto line = indent(i);
+    auto stream = indent(i);
     auto isAutoReadOnly = !prop.hasAutoVar() &&
                            prop.isReadable() &&
                           !prop.isWritable() &&
@@ -394,30 +387,30 @@ void Decompiler::PscCoder::writeProperty(int i, const Pex::Property& prop, const
                            prop.getReadFunction().getInstructions()[0].getOpCode() == Pex::OpCode::RETURN &&
                            prop.getReadFunction().getInstructions()[0].getArgs().size() == 1 &&
                            prop.getReadFunction().getInstructions()[0].getArgs()[0].getType() != Pex::ValueType::Identifier;
-    line += mapType(prop.getTypeName().asString()) + " Property " + prop.getName().asString();
+    stream << mapType(prop.getTypeName().asString()) << " Property " << prop.getName().asString();
     if (prop.hasAutoVar()) {
         auto var = object.getVariables().findByName(prop.getAutoVarName());
         if (var == nullptr) {
             // Auto variable missing — emit the property without initial value
-            line += " Auto";
-            line += " ; DECOMPILE WARNING: auto variable '" + prop.getAutoVarName().asString() + "' not found";
+            stream << " Auto";
+            stream << " ; DECOMPILE WARNING: auto variable '" << prop.getAutoVarName().asString() << "' not found";
         } else {
             auto initialValue = var->getDefaultValue();
             if (initialValue.getType() != Pex::ValueType::None)
-                line += " = " + initialValue.toString();
-            line += " Auto";
+                stream << " = " << initialValue.toString();
+            stream << " Auto";
 
             // The flags defined on the variable must be set on the property
-            writeUserFlag(line, *var, pex);
+            writeUserFlag(stream, *var, pex);
             if (var->getConstFlag())
-              line += " Const";
+              stream << " Const";
         }
     } else if (isAutoReadOnly) {
-      line += " = " + prop.getReadFunction().getInstructions()[0].getArgs()[0].toString();
-      line += " AutoReadOnly";
+      stream << " = " << prop.getReadFunction().getInstructions()[0].getArgs()[0].toString();
+      stream << " AutoReadOnly";
     }
-    writeUserFlag(line, prop, pex);
-    write(line);
+    writeUserFlag(stream, prop, pex);
+    write(stream.str());
     writeDocString(i, prop);
 
     if (!prop.hasAutoVar() && !isAutoReadOnly) {
@@ -425,7 +418,7 @@ void Decompiler::PscCoder::writeProperty(int i, const Pex::Property& prop, const
             writeFunction(i + 1, prop.getReadFunction(), object, pex, pex.getDebugInfo().getFunctionInfo(object.getName(),noState, prop.getName(), Pex::DebugInfo::FunctionType::Getter), "Get");
         if (prop.isWritable())
             writeFunction(i + 1, prop.getWriteFunction(), object, pex, pex.getDebugInfo().getFunctionInfo(object.getName(),noState, prop.getName(), Pex::DebugInfo::FunctionType::Setter), "Set");
-        write(indent(i) + "EndProperty");
+        write(indent(i) << "EndProperty");
     }
 }
 
@@ -440,24 +433,24 @@ void Decompiler::PscCoder::writeVariables(const Pex::Object &object, const Pex::
     {
         auto name = var.getName().asString();
         bool compilerGenerated = (name.size() > 2 && name[0] == ':' && name[1] == ':');
-        auto line = indent(0);
+        auto stream = indent(0);
 
         if (compilerGenerated)
-            line += "; ";
+            stream << "; ";
 
-        line += mapType(var.getTypeName().asString()) + " " + name;
+        stream << mapType(var.getTypeName().asString()) << " " << name;
         auto initialValue = var.getDefaultValue();
         if (initialValue.getType() != Pex::ValueType::None)
         {
-            line += " = " + initialValue.toString();
+            stream << " = " << initialValue.toString();
         }
-        writeUserFlag(line, var, pex);
+        writeUserFlag(stream, var, pex);
         if (var.getConstFlag())
-          line += " Const";
+          stream << " Const";
 
         if (m_CommentAsm || !compilerGenerated)
         {
-            write(line);
+            write(stream.str());
         }
     }
 }
@@ -496,16 +489,16 @@ void Decompiler::PscCoder::writeStates(const Pex::Object &object, const Pex::Bin
         {
             write("");
             write(";-- State -------------------------------------------");
-            auto line = indent(0);
+            auto stream = indent(0);
 
             // The auto state name canbe a different index than the state name, event if it is the same value.
             if (caselessCompare(state.getName().asString().c_str(), object.getAutoStateName().asString().c_str()) == 0)
             {
-                line += "Auto ";
+                stream << "Auto ";
             }
-            write(line + "State " + state.getName().asString());
+            write(stream.str() + "State " + state.getName().asString());
             writeFunctions(1, state, object, pex);
-            write(indent(0) + "EndState");
+            write(indent(0) << "EndState");
         }
     }
 }
@@ -547,7 +540,7 @@ void Decompiler::PscCoder::writeFunction(int i, const Pex::Function &function, c
     }
 
     bool isEvent = false;
-
+    
     if (functionName.size() > 2 && !caselessCompare(functionName.substr(0, 2).c_str(), "on")) {
         // We'd have to check for full inheritence to do this by object type
         // Right now, we're just seeing if matches all the built-in event names.
@@ -575,19 +568,19 @@ void Decompiler::PscCoder::writeFunction(int i, const Pex::Function &function, c
     }
 
     if (isCompilerGeneratedFunc(functionName, object, pex.getGameType())) {
-        write(indent(i) + "; Skipped compiler generated " + functionName);
+        write(indent(i) << "; Skipped compiler generated " << functionName);
         return;
     }
 
-    auto line = indent(i);
+    auto stream = indent(i);
     if (caselessCompare(function.getReturnTypeName().asString().c_str(), "none") != 0)
-        line += mapType(function.getReturnTypeName().asString()) + " ";
+        stream << mapType(function.getReturnTypeName().asString()) << " ";
 
     if (isEvent)
-      line += "Event ";
+      stream << "Event ";
     else
-      line += "Function ";
-    line += functionName + "(";
+      stream << "Function ";
+    stream << functionName << "(";
 
     auto first = true;
     for (auto& param : function.getParams())
@@ -598,22 +591,22 @@ void Decompiler::PscCoder::writeFunction(int i, const Pex::Function &function, c
         }
         else
         {
-            line += ", ";
+            stream << ", ";
         }
-        line += mapType(param.getTypeName().asString()) + " " + param.getName().asString();
+        stream << mapType(param.getTypeName().asString()) << " " << param.getName();
     }
-    line += ")";
+    stream << ")";
 
 
     if (function.isGlobal())
     {
-        line += " Global";
+        stream << " Global";
     }
     if (function.isNative())
     {
-        line += " Native";
-        writeUserFlag(line, function, pex);
-        write(line);
+        stream << " Native";
+        writeUserFlag(stream, function, pex);
+        write(stream.str());
         writeDocString(i, function);
     } else {
         try {
@@ -659,11 +652,11 @@ void Decompiler::PscCoder::writeFunction(int i, const Pex::Function &function, c
 
             }
             if (fixed){
-              write(indent(i) + "; Fixup hacks for debug-only function: " + functionName);
+              write(indent(i) << "; Fixup hacks for debug-only function: " << functionName);
             } else if (m_WriteDebugFuncs) {
-              write(indent(i) + "; WARNING: possibly inoperative debug function " + functionName);
+              write(indent(i) << "; WARNING: possibly inoperative debug function " << functionName << "");
             } else {
-              write(indent(i) + "; Skipped inoperative debug function " + functionName);
+              write(indent(i) << "; Skipped inoperative debug function " << functionName);
               return;
             }
         } else if (caselessCompare(functionName.c_str(), "GotoState") == 0 || caselessCompare(functionName.c_str(), "GetState") == 0) {
@@ -671,7 +664,7 @@ void Decompiler::PscCoder::writeFunction(int i, const Pex::Function &function, c
             if (caselessCompare(object.getName().asString().c_str(), "ScriptObject") == 0) {
                 // find the `::State` variable in the lines
                 // replace it with `__state`
-                write(indent(i) + "; Fixup hacks for native ScriptObject::GotoState/GetState");
+                write(indent(i) << "; Fixup hacks for native ScriptObject::GotoState/GetState");
                 for (auto &line : decomp){
                     if (line.find("::State") != std::string::npos)
                     {
@@ -682,42 +675,42 @@ void Decompiler::PscCoder::writeFunction(int i, const Pex::Function &function, c
         }
 
 
-        writeUserFlag(line, function, pex);
-        write(line);
+        writeUserFlag(stream, function, pex);
+        write(stream.str());
         writeDocString(i, function);
         auto index = 0;
-        for (auto &decompLine: decomp) {
+        for (auto &line: decomp) {
             auto & linemap = decomp.getLineMap();
             if (m_PrintDebugLineNo){
               // get index of line
               auto result = linemap[index];
               if (result.size() > 0){
-                decompLine += " ; #DEBUG_LINE_NO:";
-                for (auto j = 0; j < result.size(); ++j)
+                line += " ; #DEBUG_LINE_NO:";
+                for (auto i = 0; i < result.size(); ++i)
                 {
-                    if (j > 0){
-                    decompLine += ",";
+                    if (i > 0){
+                    line += ",";
                     }
-                    decompLine += std::to_string(result[j]);
+                    line += std::to_string(result[i]);
                 }
               }
             }
-            write(indent(i+1) + decompLine);
+            write(indent(i+1) << line);
             index++;
         }
         if (isEvent)
-          write(indent(i) + "EndEvent");
+          write(indent(i) << "EndEvent");
         else
-          write(indent(i) + "EndFunction");
+          write(indent(i) << "EndFunction");
         } catch (std::exception& ex) {
-            writeUserFlag(line, function, pex);
-            write(line);
+            writeUserFlag(stream, function, pex);
+            write(stream.str());
             writeDocString(i, function);
-            write(indent(i+1) + "; DECOMPILE ERROR: " + ex.what());
+            write(indent(i+1) << "; DECOMPILE ERROR: " << ex.what());
             if (isEvent)
-              write(indent(i) + "EndEvent");
+              write(indent(i) << "EndEvent");
             else
-              write(indent(i) + "EndFunction");
+              write(indent(i) << "EndFunction");
         }
     }
 
@@ -725,18 +718,18 @@ void Decompiler::PscCoder::writeFunction(int i, const Pex::Function &function, c
 
 /**
  * @brief Write the user flags associated with an item.
- * @param line String to append the flags to.
+ * @param stream Stream to write the flags to.
  * @param flagged Flagged item.
  * @param pex Binary to decompile.
  */
-void Decompiler::PscCoder::writeUserFlag(std::string& line, const Pex::UserFlagged &flagged, const Pex::Binary &pex)
+void Decompiler::PscCoder::writeUserFlag(std::ostream& stream, const Pex::UserFlagged &flagged, const Pex::Binary &pex)
 {
     auto flags = flagged.getUserFlags();
     for (auto& flag : pex.getUserFlags())
     {
         if (flags & flag.getFlagMask())
         {
-            line += " " + flag.getName().asString();
+            stream << " " << flag.getName().asString();
         }
     }
 }
@@ -750,7 +743,7 @@ void Decompiler::PscCoder::writeDocString(int i, const Pex::DocumentedItem &item
 {
     if (! item.getDocString().asString().empty())
     {
-        write(indent(i) + "{ " + item.getDocString().asString() + " }");
+        write(indent(i) << "{ " << item.getDocString().asString() << " }");
     }
 }
 

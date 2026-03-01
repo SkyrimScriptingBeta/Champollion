@@ -126,12 +126,12 @@ Decompiler::PscDecompiler::PscDecompiler(const Pex::Function &function, const Pe
 
         rebuildBooleanOperators(0, m_Function.getInstructions().size());
 
+
         Node::BasePtr programTree = rebuildControlFlow(0, m_Function.getInstructions().size());
 
         declareVariables(programTree);
 
-        if (m_HasGuards)
-            rebuildLocks(programTree);
+        rebuildLocks(programTree);
 
         cleanUpTree(programTree);
 
@@ -708,7 +708,6 @@ void Decompiler::PscDecompiler::createNodesForBlocks(size_t block)
                 }
                 case Pex::OpCode::LOCK_GUARDS:
                 {
-                    m_HasGuards = true;
                     Node::BasePtr newscope = std::make_shared<Node::Scope>();
 
                     auto lockNode = std::make_shared<Node::GuardStatement>(ip, newscope);
@@ -721,7 +720,6 @@ void Decompiler::PscDecompiler::createNodesForBlocks(size_t block)
                 }
                 case Pex::OpCode::UNLOCK_GUARDS:
                 {
-                    m_HasGuards = true;
                     auto unlockNode = std::make_shared<Node::EndGuard>(ip);
                     auto argNode = unlockNode->getParameters();
                     for (auto varg : varargs) {
@@ -732,7 +730,6 @@ void Decompiler::PscDecompiler::createNodesForBlocks(size_t block)
                 }
                 case Pex::OpCode::TRY_LOCK_GUARDS:
                 {
-                    m_HasGuards = true;
                     Node::BasePtr newscope = std::make_shared<Node::Scope>();
                     auto trylockNode = std::make_shared<Node::TryGuard>(ip, args[0].getId(), newscope);
                     auto argNode = trylockNode->getParameters();
@@ -789,47 +786,6 @@ void Decompiler::PscDecompiler::rebuildExpressionsInBlocks()
 }
 
 /**
- * @brief Inline replacement of Constant identifier nodes in a subtree.
- *
- * Replaces WithNode<Constant>().select(...).transform(...).on(tree) with a
- * direct recursive walk.  This avoids constructing a DynamicVisitor (which
- * allocates ~22 std::function slots), avoids virtual dispatch per node, and
- * avoids std::function indirection — all of which are catastrophically slow
- * in WASM due to indirect-call overhead.
- *
- * @param node      Subtree to scan.
- * @param targetId  Identifier to match in Constant nodes.
- * @param replacement  Node to substitute for matching Constants.
- * @return Number of replacements made.
- */
-static int inlineConstantReferences(
-    Node::BasePtr node,
-    const Pex::StringTable::Index& targetId,
-    Node::BasePtr replacement)
-{
-    int count = 0;
-    // Visit children first (post-order, matching original WithNode::on behavior).
-    // Snapshot children so replacements don't invalidate iteration.
-    std::vector<Node::BasePtr> children(node->begin(), node->end());
-    for (auto& child : children) {
-        if (child)
-            count += inlineConstantReferences(child, targetId, replacement);
-    }
-    // Check if this node itself is a matching Constant.
-    if (auto constant = node->as<Node::Constant>()) {
-        auto& value = constant->getConstant();
-        if (value.getType() == Pex::ValueType::Identifier && value.getId() == targetId) {
-            auto parent = node->getParent();
-            if (parent) {
-                parent->replaceChild(node->shared_from_this(), replacement);
-                ++count;
-            }
-        }
-    }
-    return count;
-}
-
-/**
  * @brief Rebuild statement in one block.
  *
  * The statements are reconstructed by propagating the first node
@@ -847,23 +803,27 @@ void Decompiler::PscDecompiler::rebuildExpression(Node::BasePtr scope)
         if (! expressionGeneration->isFinal() && nextIt != scope->end())
         {
             auto expressionUse = *nextIt;
+            auto thing = expressionGeneration->getResult();
             // Check if an identifier in expressionUse references the result of expressionGeneration
             // If so, perform a replacement
             // At this steps of the decompilation, there should be only one replacement.
-            auto modified = inlineConstantReferences(
-                    expressionUse,
-                    expressionGeneration->getResult(),
-                    expressionGeneration);
+            auto modified = Node::WithNode<Node::Constant>()
+                    .select([&] (Node::Constant* node) {
+                        auto& value = node->getConstant();
+                        return value.getType() == Pex::ValueType::Identifier && value.getId() == expressionGeneration->getResult();
+                    })
+                    .transform([&] (Node::Constant* node) {
+                        (void)node;
+                        return expressionGeneration;
+                    })
+                    .on(expressionUse);
             if (modified == 0)
             {
                 std::advance(it, 1);
             }
             else if (modified == 1)
             {
-                // Inlined into next node — don't advance, re-check this
-                // position next iteration (will find modified==0 and move on).
-                // The old `it = scope->begin()` restarted the entire loop
-                // which is O(n^2) and kills WASM performance.
+                it = scope->begin();
             }
             else
             {
@@ -1306,53 +1266,6 @@ Node::BasePtr Decompiler::PscDecompiler::rebuildControlFlow(size_t startBlock, s
 }
 
 /**
- * @brief Collect all Constant nodes referencing a given identifier.
- *
- * Direct recursive replacement for WithNode<Constant>::from() — avoids
- * DynamicVisitor construction and virtual dispatch overhead in WASM.
- */
-static void collectConstantReferences(
-    Node::BasePtr node,
-    const Pex::StringTable::Index& var,
-    std::deque<Node::BasePtr>& out)
-{
-    if (auto constant = node->as<Node::Constant>()) {
-        auto& val = constant->getConstant();
-        if (val.getType() == Pex::ValueType::Identifier && val.getId() == var) {
-            out.push_back(node);
-        }
-    }
-    for (auto& child : *node) {
-        if (child)
-            collectConstantReferences(child, var, out);
-    }
-}
-
-/**
- * @brief Collect all Assign nodes whose destination matches a given identifier.
- *
- * Direct recursive replacement for WithNode<Assign>::from().
- */
-static void collectAssignmentsToVar(
-    Node::BasePtr node,
-    const Pex::StringTable::Index& var,
-    std::deque<Node::BasePtr>& out)
-{
-    if (auto assign = node->as<Node::Assign>()) {
-        if (assign->getDestination()->is<Node::Constant>()) {
-            auto& value = assign->getDestination()->as<Node::Constant>()->getConstant();
-            if (value.getType() == Pex::ValueType::Identifier && value.getId() == var) {
-                out.push_back(node);
-            }
-        }
-    }
-    for (auto& child : *node) {
-        if (child)
-            collectAssignmentsToVar(child, var, out);
-    }
-}
-
-/**
  * @brief Finds the lowest common scope for a variable's references.
  * @param var Name of the variable.
  * @param scope Initial enclosing scope.
@@ -1364,8 +1277,12 @@ Node::BasePtr Decompiler::PscDecompiler::findScopeForVariable(const Pex::StringT
     Node::BasePtr result = scope;
 
     // Find all references to the variable.
-    std::deque<Node::BasePtr> references;
-    collectConstantReferences(scope, var, references);
+    auto references = Node::WithNode<Node::Constant>()
+            .select([&] (Node::Constant* node) {
+                auto& val = node->getConstant();
+                return val.getType() == Pex::ValueType::Identifier && val.getId() == var;
+            })
+            .from(scope);
 
     // If there are some references, we perform the scope detection
     if (references.size() != 0)
@@ -1446,8 +1363,17 @@ void Decompiler::PscDecompiler::declareVariables(Node::BasePtr program)
             auto declare = std::make_shared<Node::Declare>(-1, std::make_shared<Node::Constant>(-1, Pex::Value(local.getName(), true)), local.getTypeName());
 
             // Find all assignment to the variable
-            std::deque<Node::BasePtr> assignments;
-            collectAssignmentsToVar(scope, local.getName(), assignments);
+            auto assignments = Node::WithNode<Node::Assign>()
+                    .select([&] (Node::Assign* node) {
+                        if(node->getDestination()->is<Node::Constant>())
+                        {
+                            auto& value = node->getDestination()->as<Node::Constant>()->getConstant();
+
+                            return value.getType() == Pex::ValueType::Identifier && value.getId() == local.getName();
+                        }
+                        return  false;
+                    })
+                    .from(scope);
             // The first assignment is in the upper level scope
             if (assignments.size() > 0 && assignments.front()->getParent() == scope)
             {
@@ -1467,111 +1393,6 @@ void Decompiler::PscDecompiler::declareVariables(Node::BasePtr program)
 
 
 /**
- * @brief Single-pass recursive cleanup of one node and its children.
- *
- * Replaces the original 7 separate WithNode tree traversals with a single
- * post-order walk.  This is critical for WASM performance because each
- * WithNode pass uses DynamicVisitor (std::function + virtual dispatch),
- * and indirect calls are 10-50x slower in WASM than native.
- *
- * By making this a concrete member function instead of a std::function lambda,
- * the compiler can emit a direct call instruction (no vtable/function-pointer
- * indirection), further reducing WASM overhead.
- */
-void Decompiler::PscDecompiler::cleanUpNode(Node::BasePtr node)
-{
-    // Visit children first (post-order), operating on a snapshot so
-    // replacements don't invalidate the iteration.
-    std::vector<Node::BasePtr> children(node->begin(), node->end());
-    for (auto& child : children) {
-        if (child) cleanUpNode(child);
-    }
-
-    // Now check if *this* node should be replaced in its parent.
-    auto parent = node->getParent();
-    if (!parent) return;
-    auto self = node->shared_from_this();
-
-    // 1) Copy → unwrap value
-    if (auto copy = node->as<Node::Copy>()) {
-        parent->replaceChild(self, copy->getValue());
-        return;
-    }
-
-    // 2) Cast → remove useless same-type cast or none-cast
-    if (auto cast = node->as<Node::Cast>()) {
-        if (cast->getValue()->is<Node::Constant>()) {
-            auto& value = cast->getValue()->as<Node::Constant>()->getConstant();
-            if (value.getType() == Pex::ValueType::Identifier &&
-                typeOfVar(value.getId()) == cast->getType()) {
-                parent->replaceChild(self, cast->getValue());
-                return;
-            }
-            if (value.getType() == Pex::ValueType::None) {
-                parent->replaceChild(self, cast->getValue());
-                return;
-            }
-        }
-    }
-
-    // 3) Constant identifier → IdentifierString (unmangle names)
-    if (auto constant = node->as<Node::Constant>()) {
-        if (constant->getConstant().getType() == Pex::ValueType::Identifier) {
-            auto replacement = std::make_shared<Node::IdentifierString>(
-                constant->getBegin(),
-                getVarName(constant->getConstant().getId()));
-            parent->replaceChild(self, replacement);
-            return;
-        }
-    }
-
-    // 4) !( == ) → !=
-    if (auto unary = node->as<Node::UnaryOperator>()) {
-        if (unary->getOperator() == "!" && unary->getValue()->is<Node::BinaryOperator>()) {
-            auto op = unary->getValue()->as<Node::BinaryOperator>();
-            if (op->getOperator() == "==") {
-                auto replacement = std::make_shared<Node::BinaryOperator>(
-                    op->getBegin(), op->getPrecedence(), op->getResult(),
-                    op->getLeft(), "!=", op->getRight());
-                replacement->includeInstruction(unary->getEnd());
-                parent->replaceChild(self, replacement);
-                return;
-            }
-        }
-    }
-
-    // 5) IfElse with single-child else that is also IfElse → ElseIf
-    if (auto ifelse = node->as<Node::IfElse>()) {
-        auto elseNode = ifelse->getElse();
-        if (elseNode->size() == 1 && (*elseNode)[0]->is<Node::IfElse>()) {
-            auto childIfNode = (*elseNode)[0];
-            ifelse->setElse(childIfNode->as<Node::IfElse>()->getElse());
-            childIfNode->as<Node::IfElse>()->setElse(std::make_shared<Node::Scope>());
-            *ifelse->getElseIf() << childIfNode;
-            ifelse->getElseIf()->mergeChildren(childIfNode->as<Node::IfElse>()->getElseIf());
-        }
-    }
-
-    // 6) x = x op y → x op= y
-    if (auto assign = node->as<Node::Assign>()) {
-        if (assign->getValue()->is<Node::BinaryOperator>()) {
-            auto binaryOp = assign->getValue()->as<Node::BinaryOperator>();
-            if (binaryOp->getOperator() != "||" && binaryOp->getOperator() != "&&"
-                && !assign->getDestination()->is<Node::PropertyAccess>()
-                && !assign->getDestination()->is<Node::ArrayAccess>()
-                && Node::isSameTree(assign->getDestination(), binaryOp->getLeft()))
-            {
-                auto replacement = std::make_shared<Node::AssignOperator>(
-                    assign->getBegin(), assign->getDestination(),
-                    binaryOp->getOperator() + "=", binaryOp->getRight());
-                parent->replaceChild(self, replacement);
-                return;
-            }
-        }
-    }
-}
-
-/**
  * @brief Clean the reconstructed tree.
  *
  * This pass perform a cleanup of the reconstructed tree to remove superfluous statement
@@ -1581,9 +1402,128 @@ void Decompiler::PscDecompiler::cleanUpNode(Node::BasePtr node)
  * @param program The root node of the program tree.
  */
 void Decompiler::PscDecompiler::cleanUpTree(Node::BasePtr program)
-{
+{    
     program->computeInstructionBounds();
-    cleanUpNode(program);
+
+
+    // Remove the copy node, which was used to assign to temporary variables.;
+    Node::WithNode<Node::Copy>()
+        .transform([&] (Node::Copy* node) {
+            auto val = node->getValue();
+//            val->includeInstruction(node->getEnd());
+            return val;
+        })
+        .on(program);
+
+    // Remove casting a variable as it's own type as they are useless
+    Node::WithNode<Node::Cast>()
+        .select([&] (Node::Cast* node) {
+            if (node->getValue()->is<Node::Constant>())
+            {
+                auto value = node->getValue()->as<Node::Constant>()->getConstant();
+                if (value.getType() == Pex::ValueType::Identifier)
+                {
+                    return typeOfVar(value.getId()) == node->getType();
+                }
+            }
+            return false;
+        })
+        .transform([&] (Node::Cast* node) {
+            return node->getValue();
+        })
+        .on(program);
+
+    // Remove casting none as Something as they are invalid
+    Node::WithNode<Node::Cast>()
+        .select([&] (Node::Cast* node) {
+            if (node->getValue()->is<Node::Constant>())
+            {
+                auto value = node->getValue()->as<Node::Constant>()->getConstant();
+                return value.getType() == Pex::ValueType::None;
+            }
+            return false;
+        })
+        .transform([&] (Node::Cast* node) {
+            return node->getValue();
+        })
+        .on(program);
+
+
+    // Replace the identifiers name index with a string value, unmangling names and property autovar
+    Node::WithNode<Node::Constant>()
+            .select([&] (Node::Constant* node) {
+                return node->getConstant().getType() == Pex::ValueType::Identifier;
+            })
+            .transform([&] (Node::Constant* node) {
+                return std::make_shared<Node::IdentifierString>(node->getBegin(), getVarName(node->getConstant().getId()));
+            })
+            .on(program);
+
+
+    // Apply ! operator on == comparison
+    Node::WithNode<Node::UnaryOperator>()
+        .select([&] (Node::UnaryOperator* node) {
+            if (node->getOperator() == "!" && node->getValue()->is<Node::BinaryOperator>())
+            {
+                auto op = node->getValue()->as<Node::BinaryOperator>();
+                return op->getOperator() == "==";
+            }
+            return false;
+        })
+        .transform([&] (Node::UnaryOperator* node) {
+            auto op = node->getValue()->as<Node::BinaryOperator>();
+            auto result = std::make_shared<Node::BinaryOperator>(op->getBegin(), op->getPrecedence(), op->getResult(), op->getLeft(), "!=", op->getRight());
+            result->includeInstruction(node->getEnd());
+            return result;
+        })
+        .on(program);
+
+    // Rebuild ElseIf structures
+    Node::WithNode<Node::IfElse>()
+        .select([&] (Node::IfElse* node) {
+            auto elseNode = node->getElse();
+            return elseNode->size() == 1 && elseNode->operator[](0)->is<Node::IfElse>();
+        })
+        .transform([&] (Node::IfElse* node) {
+            auto childIfNode = node->getElse()->operator[](0);            
+
+            node->setElse(childIfNode->as<Node::IfElse>()->getElse());
+            childIfNode->as<Node::IfElse>()->setElse(std::make_shared<Node::Scope>());
+
+            *node->getElseIf() << childIfNode;
+            node->getElseIf()->mergeChildren(childIfNode->as<Node::IfElse>()->getElseIf());
+
+            return node->shared_from_this();
+        })
+    .on(program);
+
+    // Extract assign operator ( x = x + 1 => x += 1)
+    Node::WithNode<Node::Assign>()
+        .select([&] (Node::Assign* node) {
+            auto result = false;
+            auto destination = node->getDestination();
+            if (node->getValue()->is<Node::BinaryOperator>())
+            {
+                auto binaryOp = node->getValue()->as<Node::BinaryOperator>();
+                // ||= and &&= are not valid operators
+                // a.b.c += 1 doesn't seems to compile.
+                // so is array[x] += 1
+                if (binaryOp->getOperator() != "||" && binaryOp->getOperator() != "&&"
+                    && !node->getDestination()->is<Node::PropertyAccess>()
+                    && !node->getDestination()->is<Node::ArrayAccess>()
+                )
+                {
+                    auto left = binaryOp->getLeft();
+                    return Node::isSameTree(destination, left);
+                }
+            }
+            return result;
+        })
+        .transform([&] (Node::Assign* node) {
+            auto binaryOp = node->getValue()->as<Node::BinaryOperator>();
+            return std::make_shared<Node::AssignOperator>(node->getBegin(), node->getDestination(), binaryOp->getOperator() + "=", binaryOp->getRight());
+        })
+        .on(program);
 
     program->computeInstructionBounds();
 

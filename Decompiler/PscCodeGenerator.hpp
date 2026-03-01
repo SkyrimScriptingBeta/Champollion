@@ -3,7 +3,7 @@
 #include "Node/Visitor.hpp"
 #include "PscDecompiler.hpp"
 
-#include <string>
+#include <sstream>
 
 namespace Decompiler
 {
@@ -47,10 +47,10 @@ public:
     virtual void visit(Node::EndGuard* node);
 
 
-protected:
+protected:    
     void newLine();
     void addIpRangeForCurrentLine(int64_t begin, int64_t end);
-    std::string m_Result;
+    std::ostringstream m_Result;
     int64_t minIpForCurrentLine{ -1 };
     int64_t maxIpForCurrentLine{ -1 };
     std::uint8_t m_Level{ 0 };

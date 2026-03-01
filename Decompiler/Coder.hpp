@@ -1,7 +1,7 @@
 #pragma once
 
 #include <memory>
-#include <string>
+#include <sstream>
 
 #include "OutputWriter.hpp"
 #include "Pex/Binary.hpp"
@@ -23,9 +23,10 @@ public:
 
 protected:
     void write(const std::string& line);
+    void write(std::ostream&& stream);
 
 
-    std::string indent(int i);
+    std::ostringstream indent(int i);
 
     std::unique_ptr<OutputWriter> m_Writer;
 };
