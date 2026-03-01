@@ -823,7 +823,10 @@ void Decompiler::PscDecompiler::rebuildExpression(Node::BasePtr scope)
             }
             else if (modified == 1)
             {
-                it = scope->begin();
+                // Inlined into next node — don't advance, re-check this
+                // position next iteration (will find modified==0 and move on).
+                // The old `it = scope->begin()` restarted the entire loop
+                // which is O(n^2) and kills WASM performance.
             }
             else
             {
