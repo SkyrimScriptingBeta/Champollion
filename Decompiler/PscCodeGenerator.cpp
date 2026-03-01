@@ -1,6 +1,7 @@
 #include "PscCodeGenerator.hpp"
 
 #include <cassert>
+#include <chrono>
 
 #include "Node/Nodes.hpp"
 #include "PscCoder.hpp"
@@ -58,11 +59,19 @@ void Decompiler::PscCodeGenerator::newLine()
 void Decompiler::PscCodeGenerator::visit(Node::Scope* node)
 {
     auto not_first = false;
+    int stmtIdx = 0;
+    bool isRoot = (node->getParent() == nullptr);
     for(auto statement : *node)
     {
         if(not_first)
         {
+            auto nl0 = std::chrono::high_resolution_clock::now();
             newLine();
+            auto nl1 = std::chrono::high_resolution_clock::now();
+            if (isRoot) {
+                auto us = std::chrono::duration_cast<std::chrono::microseconds>(nl1-nl0).count();
+                printf("    [scope] newLine[%d]=%lldus\n", stmtIdx, us);
+            }
         }
         else
         {
@@ -72,11 +81,23 @@ void Decompiler::PscCodeGenerator::visit(Node::Scope* node)
         {
             m_Decompiler->decodeToAsm(m_Level, statement->getBegin(), statement->getEnd());
         }
+        auto sv0 = std::chrono::high_resolution_clock::now();
         statement->visit(this);
+        auto sv1 = std::chrono::high_resolution_clock::now();
+        if (isRoot) {
+            auto us = std::chrono::duration_cast<std::chrono::microseconds>(sv1-sv0).count();
+            printf("    [scope] visit[%d]=%lldus\n", stmtIdx, us);
+        }
+        stmtIdx++;
     }
-    if (node->getParent() == nullptr)
+    if (isRoot)
     {
+        auto nl0 = std::chrono::high_resolution_clock::now();
         newLine();
+        auto nl1 = std::chrono::high_resolution_clock::now();
+        auto us = std::chrono::duration_cast<std::chrono::microseconds>(nl1-nl0).count();
+        printf("    [scope] finalNewLine=%lldus stmts=%d\n", us, stmtIdx);
+        fflush(stdout);
     }
 }
 
