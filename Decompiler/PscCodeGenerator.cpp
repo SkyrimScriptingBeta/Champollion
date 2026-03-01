@@ -47,6 +47,8 @@ void Decompiler::PscCodeGenerator::newLine()
         m_ExperimentalSyntaxWarning.clear();
     }
     auto nl1 = std::chrono::high_resolution_clock::now();
+    auto savedMin = minIpForCurrentLine;
+    auto savedMax = maxIpForCurrentLine;
     auto nums = getDebugInfoLineNumbers(minIpForCurrentLine, maxIpForCurrentLine);
     auto nl2 = std::chrono::high_resolution_clock::now();
     resetIpsForCurrentLine();
@@ -65,8 +67,9 @@ void Decompiler::PscCodeGenerator::newLine()
     auto us = [](auto a, auto b){ return std::chrono::duration_cast<std::chrono::microseconds>(b - a).count(); };
     auto total = us(nl0, nl5);
     if (total > 1000) {
-        printf("      [newLine#%d] warn=%lldus dbg=%lldus push=%lldus map=%lldus indent=%lldus total=%lldus\n",
-            nlCount, us(nl0,nl1), us(nl1,nl2), us(nl2,nl3), us(nl3,nl4), us(nl4,nl5), total);
+        printf("      [newLine#%d] warn=%lldus dbg=%lldus push=%lldus map=%lldus indent=%lldus total=%lldus ipRange=[%lld,%lld]\n",
+            nlCount, us(nl0,nl1), us(nl1,nl2), us(nl2,nl3), us(nl3,nl4), us(nl4,nl5), total,
+            (long long)savedMin, (long long)savedMax);
         fflush(stdout);
     }
     nlCount++;
