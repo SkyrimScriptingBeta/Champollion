@@ -257,9 +257,10 @@ void Decompiler::PscCoder::writeStructs(const Pex::Object& object, const Pex::Bi
                                     goto ContinueOrder;
                                 }
                             }
-                            // If we get here, then we failed to find the struct
-                            // member in the debug info :(
-                            throw std::runtime_error("Unable to locate the struct member by the name of '" + orderName.asString() + "'");
+                            // Debug info references a struct member that doesn't exist.
+                            // Fall back to writing members in file order.
+                            foundInfo = false;
+                            goto FallbackStructOrder;
                         ContinueOrder:
                             continue;
                         }
@@ -273,6 +274,7 @@ void Decompiler::PscCoder::writeStructs(const Pex::Object& object, const Pex::Bi
             }
         }
 
+    FallbackStructOrder:
         if (!foundInfo) {
             for (auto& mem : sInfo.getMembers())
                 writeStructMember(mem, pex);
@@ -340,13 +342,14 @@ void Decompiler::PscCoder::writeProperties(const Pex::Object &object, const Pex:
                         for (auto& prop : object.getProperties()) {
                             if (prop.getName() == propName) {
                                 writeProperty(propertyIndent, prop, object, pex);
-                                goto ContinueOrder;
+                                goto ContinuePropertyOrder;
                             }
                         }
-                        // If we get here, then we failed to find the struct
-                        // member in the debug info :(
-                        throw std::runtime_error("Unable to locate the property by the name of '" + propName.asString() + "' referenced in the debug info");
-                    ContinueOrder:
+                        // Debug info references a property that doesn't exist.
+                        // Fall back to writing properties in file order.
+                        foundInfo = false;
+                        goto FallbackPropertyOrder;
+                    ContinuePropertyOrder:
                         continue;
                     }
 
@@ -359,6 +362,7 @@ void Decompiler::PscCoder::writeProperties(const Pex::Object &object, const Pex:
         }
     }
 
+FallbackPropertyOrder:
     if (!foundInfo) {
         for (auto& prop : object.getProperties())
             writeProperty(0, prop, object, pex);
@@ -386,18 +390,21 @@ void Decompiler::PscCoder::writeProperty(int i, const Pex::Property& prop, const
     stream << mapType(prop.getTypeName().asString()) << " Property " << prop.getName().asString();
     if (prop.hasAutoVar()) {
         auto var = object.getVariables().findByName(prop.getAutoVarName());
-        if (var == nullptr)
-            throw std::runtime_error("Auto variable for property not found");
+        if (var == nullptr) {
+            // Auto variable missing — emit the property without initial value
+            stream << " Auto";
+            stream << " ; DECOMPILE WARNING: auto variable '" << prop.getAutoVarName().asString() << "' not found";
+        } else {
+            auto initialValue = var->getDefaultValue();
+            if (initialValue.getType() != Pex::ValueType::None)
+                stream << " = " << initialValue.toString();
+            stream << " Auto";
 
-        auto initialValue = var->getDefaultValue();
-        if (initialValue.getType() != Pex::ValueType::None)
-            stream << " = " << initialValue.toString();
-        stream << " Auto";
-
-        // The flags defined on the variable must be set on the property
-        writeUserFlag(stream, *var, pex);
-        if (var->getConstFlag())
-          stream << " Const";
+            // The flags defined on the variable must be set on the property
+            writeUserFlag(stream, *var, pex);
+            if (var->getConstFlag())
+              stream << " Const";
+        }
     } else if (isAutoReadOnly) {
       stream << " = " << prop.getReadFunction().getInstructions()[0].getArgs()[0].toString();
       stream << " AutoReadOnly";
