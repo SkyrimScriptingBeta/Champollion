@@ -48,15 +48,21 @@ void Decompiler::AsmCoder::writeInfo(const Pex::Binary &pex)
     auto& header = pex.getHeader();
     auto& debug  = pex.getDebugInfo();
     write(".info");
-    write(indent(1) << ".source \"" << header.getSourceFileName() << "\"");
+    write(indent(1) + ".source \"" + header.getSourceFileName() + "\"");
     if (debug.getModificationTime() != 0)
     {
-        write(indent(1) << ".modifyTime " << debug.getModificationTime() << " ;" << std::put_time(std::localtime(&debug.getModificationTime()), "%Y-%m-%d %H:%M:%S"));
+        std::ostringstream oss;
+        oss << std::put_time(std::localtime(&debug.getModificationTime()), "%Y-%m-%d %H:%M:%S");
+        write(indent(1) + ".modifyTime " + std::to_string(debug.getModificationTime()) + " ;" + oss.str());
     }
-    write(indent(1) << ".compileTime " << header.getCompilationTime() << " ;" << std::put_time(std::localtime(&header.getCompilationTime()), "%Y-%m-%d %H:%M:%S"));
+    {
+        std::ostringstream oss;
+        oss << std::put_time(std::localtime(&header.getCompilationTime()), "%Y-%m-%d %H:%M:%S");
+        write(indent(1) + ".compileTime " + std::to_string(header.getCompilationTime()) + " ;" + oss.str());
+    }
 
-    write(indent(1) << ".user \"" << header.getUserName() << "\"");
-    write(indent(1) << ".computer \"" << header.getComputerName() << "\"");
+    write(indent(1) + ".user \"" + header.getUserName() + "\"");
+    write(indent(1) + ".computer \"" + header.getComputerName() + "\"");
     write(".endInfo");
 }
 
@@ -70,8 +76,10 @@ void Decompiler::AsmCoder::writeUserFlagsRef(const Pex::Binary &pex)
     write(".userFlagsRef");
     for (auto& flag : flags)
     {
-        write(indent(1) << ".flag " << flag.getName().asString() << " " << (int)flag.getFlagIndex()
-              << " ;0x" << std::setw(8) << std::setfill('0') << std::hex << std::uppercase << (1 << flag.getFlagIndex()));
+        std::ostringstream oss;
+        oss << std::setw(8) << std::setfill('0') << std::hex << std::uppercase << (1 << flag.getFlagIndex());
+        write(indent(1) + ".flag " + flag.getName().asString() + " " + std::to_string((int)flag.getFlagIndex())
+              + " ;0x" + oss.str());
     }
     write(".endUserFlagsRef");
 }
@@ -85,14 +93,14 @@ void Decompiler::AsmCoder::writeObjectTable(const Pex::Binary &pex)
     write(".objectTable");
     for (auto& object : pex.getObjects())
     {
-        write(indent(1) << ".object " << object.getName().asString() << " " << object.getParentClassName().asString());
+        write(indent(1) + ".object " + object.getName().asString() + " " + object.getParentClassName().asString());
         writeUserFlags(indent(2), object, pex);
-        write(indent(2) << ".docString \"" << object.getDocString().asString() << '"');
-        write(indent(2) << ".autoState " << object.getAutoStateName().asString());
+        write(indent(2) + ".docString \"" + object.getDocString().asString() + "\"");
+        write(indent(2) + ".autoState " + object.getAutoStateName().asString());
         writeVariableTable(2, object, pex);
         writePropertyTable(2, object, pex);
         writeStateTable(2, object, pex);
-        write(indent(1) << ".endObject");
+        write(indent(1) + ".endObject");
     }
     write(".endObjectTable");
 }
@@ -105,15 +113,15 @@ void Decompiler::AsmCoder::writeObjectTable(const Pex::Binary &pex)
  */
 void Decompiler::AsmCoder::writeVariableTable(int i, const Pex::Object &object, const Pex::Binary &pex)
 {
-    write(indent(i) << ".variableTable");
+    write(indent(i) + ".variableTable");
     for (auto& var : object.getVariables())
     {
-        write(indent(i+1) << ".variable " << var.getName().asString() << " " << var.getTypeName().asString());
+        write(indent(i+1) + ".variable " + var.getName().asString() + " " + var.getTypeName().asString());
         writeUserFlags(indent(i+2), var, pex);
-        write(indent(i+2) << ".initialValue " << var.getDefaultValue().toString());
-        write(indent(i+1) << ".endVariable");
+        write(indent(i+2) + ".initialValue " + var.getDefaultValue().toString());
+        write(indent(i+1) + ".endVariable");
     }
-    write(indent(i) << ".endVariableTable");
+    write(indent(i) + ".endVariableTable");
 }
 
 /**
@@ -124,17 +132,17 @@ void Decompiler::AsmCoder::writeVariableTable(int i, const Pex::Object &object, 
  */
 void Decompiler::AsmCoder::writePropertyTable(int i, const Pex::Object &object, const Pex::Binary &pex)
 {
-    write(indent(i) << ".propertyTable");
+    write(indent(i) + ".propertyTable");
     for (auto& property : object.getProperties())
     {
         //TODO:Check for auto read only
-        write(indent(i+1) << ".property " << property.getName().asString() << " " << property.getTypeName().asString() << (property.hasAutoVar()?" auto":""));
+        write(indent(i+1) + ".property " + property.getName().asString() + " " + property.getTypeName().asString() + (property.hasAutoVar()?" auto":""));
         writeUserFlags(indent(i+2), property, pex);
-        write(indent(i+2) << ".docString \"" << property.getDocString().asString() << '"');
+        write(indent(i+2) + ".docString \"" + property.getDocString().asString() + "\"");
 
         if(property.hasAutoVar())
         {
-            write(indent(i+2) << ".autovar " << property.getAutoVarName().asString());
+            write(indent(i+2) + ".autovar " + property.getAutoVarName().asString());
         }
         else
         {
@@ -149,9 +157,9 @@ void Decompiler::AsmCoder::writePropertyTable(int i, const Pex::Object &object, 
                 writeFunction(i+2, property.getWriteFunction(), pex, pex.getDebugInfo().getFunctionInfo(object.getName(), noState, property.getName(), Pex::DebugInfo::FunctionType::Setter), "set");
             }
         }
-        write(indent(i+1) << ".endProperty");
+        write(indent(i+1) + ".endProperty");
     }
-    write(indent(i) << ".endPropertyTable");
+    write(indent(i) + ".endPropertyTable");
 }
 
 /**
@@ -162,17 +170,17 @@ void Decompiler::AsmCoder::writePropertyTable(int i, const Pex::Object &object, 
  */
 void Decompiler::AsmCoder::writeStateTable(int i, const Pex::Object &object, const Pex::Binary &pex)
 {
-    write(indent(i) << ".stateTable");
+    write(indent(i) + ".stateTable");
     for (auto& state : object.getStates())
     {
-        write(indent(i+1) << ".state " << state.getName().asString());
+        write(indent(i+1) + ".state " + state.getName().asString());
         for (auto& function : state.getFunctions())
         {
             writeFunction(i+2, function, pex, pex.getDebugInfo().getFunctionInfo(object.getName(), state.getName(), function.getName()));
         }
-        write(indent(i+1) << ".endState");
+        write(indent(i+1) + ".endState");
     }
-    write(indent(i) << ".endStateTable");
+    write(indent(i) + ".endStateTable");
 }
 
 /**
@@ -191,36 +199,36 @@ void Decompiler::AsmCoder::writeFunction(int i, const Pex::Function &function, c
         functionName = function.getName().asString();
     }
 
-    write(indent(i) << ".function " << functionName);
+    write(indent(i) + ".function " + functionName);
     if (info)
     {
-        write(indent(i+1) << " ; function type " << (int)info->getFunctionType());
+        write(indent(i+1) + " ; function type " + std::to_string((int)info->getFunctionType()));
     }
     writeUserFlags(indent(i+1), function, pex);
-    write(indent(i+1) << ".docString \"" << function.getDocString().asString() << '"');
+    write(indent(i+1) + ".docString \"" + function.getDocString().asString() + "\"");
 
-    write(indent(i+1) << ".return " << function.getReturnTypeName().asString());
+    write(indent(i+1) + ".return " + function.getReturnTypeName().asString());
 
-    write(indent(i+1) << ".paramTable");
+    write(indent(i+1) + ".paramTable");
     for (auto& param : function.getParams())
     {
-        write(indent(i+2) << ".param " << param.getName().asString() << " " << param.getTypeName().asString());
+        write(indent(i+2) + ".param " + param.getName().asString() + " " + param.getTypeName().asString());
     }
-    write(indent(i+1) << ".endParamTable");
+    write(indent(i+1) + ".endParamTable");
 
-    write(indent(i+1) << ".localTable");
+    write(indent(i+1) + ".localTable");
     for (auto& local : function.getLocals())
     {
-        write(indent(i+2) << ".local " << local.getName().asString() << " " << local.getTypeName().asString());
+        write(indent(i+2) + ".local " + local.getName().asString() + " " + local.getTypeName().asString());
     }
-    write(indent(i+1) << ".endLocalTable");
+    write(indent(i+1) + ".endLocalTable");
 
-    write(indent(i+1) << ".code");
+    write(indent(i+1) + ".code");
     writeCode(i+1, function.getInstructions(), info);
-    write(indent(i+1) << ".endCode");
+    write(indent(i+1) + ".endCode");
 
 
-    write(indent(i) << ".endFunction " << ";" << functionName);
+    write(indent(i) + ".endFunction ;" + functionName);
 
 }
 
@@ -287,15 +295,16 @@ void Decompiler::AsmCoder::writeCode(int i, const Pex::Instructions &instruction
         if (info && ip < info->getLineNumbers().size() && info->getLineNumbers()[ip] != currentLine )
         {
             currentLine = info->getLineNumbers()[ip];
-            write(indent(i+1) << "; line " << currentLine);
+            write(indent(i+1) + "; line " + std::to_string(currentLine));
         }
         // Check if a label must be emitted.
         if (label.find(ip) != label.end())
         {
-            write(indent(i) << "_label" << label[ip] << ':');
+            write(indent(i) + "_label" + std::to_string(label[ip]) + ":");
         }
-        auto stream = indent(i + 1);
-        stream << ins.getOpCodeName() << " ";
+        auto line = indent(i + 1);
+        line += ins.getOpCodeName();
+        line += " ";
         switch(ins.getOpCode())
         {
         case Pex::OpCode::JMP:
@@ -305,7 +314,7 @@ void Decompiler::AsmCoder::writeCode(int i, const Pex::Instructions &instruction
 
             auto target = ip + ins.getArgs()[0].getInteger();
 
-            stream << "_label" << label[target];
+            line += "_label" + std::to_string(label[target]);
         }
             break;
         case Pex::OpCode::JMPF:
@@ -314,10 +323,10 @@ void Decompiler::AsmCoder::writeCode(int i, const Pex::Instructions &instruction
             assert(ins.getArgs().size() == 2);
             assert(ins.getArgs()[1].getType() == Pex::ValueType::Integer);
 
-            stream << ins.getArgs()[0].toString() << " ";
+            line += ins.getArgs()[0].toString() + " ";
             auto target = ip + ins.getArgs()[1].getInteger();
 
-            stream << "_label" << label[target];
+            line += "_label" + std::to_string(label[target]);
 
         }
             break;
@@ -325,45 +334,45 @@ void Decompiler::AsmCoder::writeCode(int i, const Pex::Instructions &instruction
         {
             for (auto& arg : ins.getArgs())
             {
-                stream << arg.toString() << " ";
+                line += arg.toString() + " ";
             }
 
             if (ins.hasVarArgs())
             {
                 for (auto& arg : ins.getVarArgs())
                 {
-                    stream << arg.toString() << " ";
+                    line += arg.toString() + " ";
                 }
-                stream << ";" << ins.getVarArgs().size() << " variable args";
+                line += ";" + std::to_string(ins.getVarArgs().size()) + " variable args";
             }
         }
             break;
         }
 
 
-        write(stream.str());
+        write(line);
         ++ip;
     }
     // Write the last label, if one.
     if (label.find(ip) != label.end())
     {
-        write(indent(i) << "_label" << label[ip]);
+        write(indent(i) + "_label" + std::to_string(label[ip]));
     }
 }
 
 /**
  * @brief Writes the User Flags associated with an element to a stream.
- * @param stream The stream to write.
+ * @param line The line prefix string.
  * @param flagged The flagged element.
  * @param pex The source binary.
  */
-void Decompiler::AsmCoder::writeUserFlags(std::ostream&& stream, const Pex::UserFlagged &flagged, const Pex::Binary &pex)
+void Decompiler::AsmCoder::writeUserFlags(std::string line, const Pex::UserFlagged &flagged, const Pex::Binary &pex)
 {
     auto& flagsref = pex.getUserFlags();
 
     auto flags = flagged.getUserFlags();
 
-    stream << ".userFlags " << (int)flags << " ;";
+    line += ".userFlags " + std::to_string((int)flags) + " ;";
 
     if (flags != 0x0000)
     {
@@ -371,14 +380,13 @@ void Decompiler::AsmCoder::writeUserFlags(std::ostream&& stream, const Pex::User
         {
             if (flags & (1 << flagref.getFlagIndex()))
             {
-                stream << flagref.getName().asString() << " ";
+                line += flagref.getName().asString() + " ";
             }
         }
     }
     else
     {
-        stream << "none";
+        line += "none";
     }
-    auto& sstream = static_cast<std::ostringstream&>(stream);
-    write(sstream.str());
+    write(line);
 }

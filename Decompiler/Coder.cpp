@@ -31,19 +31,6 @@ void Decompiler::Coder::write(const std::string &line)
 }
 
 /**
- * @brief Write the content of a ostringstream.
- * The ostringstream is passed as an ostream. This is intended
- * to write output in the form
- *  write(indent(i) << "line data");
- * @param stream The stream as an ostream.
- */
-void Decompiler::Coder::write(std::ostream&& stream)
-{
-    auto& sstream = static_cast<std::ostringstream&>(stream);
-    m_Writer->writeLine(sstream.str());
-}
-
-/**
  * @brief Creates a string with indentation.
  * @param i Indentation level to apply.
  * @return

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <memory>
-#include <sstream>
 #include <string>
 
 #include "OutputWriter.hpp"
@@ -24,7 +23,6 @@ public:
 
 protected:
     void write(const std::string& line);
-    void write(std::ostream&& stream);
 
 
     std::string indent(int i);
