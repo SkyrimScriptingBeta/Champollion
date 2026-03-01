@@ -1792,8 +1792,24 @@ void Decompiler::PscDecompiler::generateCode(Node::BasePtr program)
         push_back("");
     }
 
-    PscCodeGenerator codegen(this);
-    program->visit(&codegen);
+    {
+        // Micro-benchmark: time 100 dynamic_casts on the program node
+        auto bd0 = std::chrono::high_resolution_clock::now();
+        volatile int dcCount = 0;
+        for (int _i = 0; _i < 100; ++_i) {
+            if (dynamic_cast<Node::Scope*>(program.get())) dcCount++;
+        }
+        auto bd1 = std::chrono::high_resolution_clock::now();
+
+        auto ta = std::chrono::high_resolution_clock::now();
+        PscCodeGenerator codegen(this);
+        auto tb = std::chrono::high_resolution_clock::now();
+        program->visit(&codegen);
+        auto tc = std::chrono::high_resolution_clock::now();
+        auto us = [](auto a, auto b){ return std::chrono::duration_cast<std::chrono::microseconds>(b - a).count(); };
+        printf("  [gc detail] ctor=%lldus visit=%lldus dyncast100=%lldus\n", us(ta,tb), us(tb,tc), us(bd0,bd1));
+        fflush(stdout);
+    }
 }
 
 /**
