@@ -823,10 +823,7 @@ void Decompiler::PscDecompiler::rebuildExpression(Node::BasePtr scope)
             }
             else if (modified == 1)
             {
-                // Expression was inlined into the next node — remove it from
-                // the scope and continue forward.  The old code restarted from
-                // scope->begin() which is O(n²) and catastrophic under WASM.
-                it = scope->erase(it);
+                it = scope->begin();
             }
             else
             {
