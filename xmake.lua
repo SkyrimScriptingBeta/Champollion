@@ -23,13 +23,13 @@ end
 target("Pex")
     set_kind("$(kind)")
     add_files("Pex/*.cpp")
-    add_headerfiles("Pex/*.hpp")
+    add_headerfiles("(Pex/*.hpp)")
     add_includedirs(".", {public = true})
 
 target("Decompiler")
     set_kind("$(kind)")
     add_files("Decompiler/*.cpp", "Decompiler/Node/*.cpp")
-    add_headerfiles("Decompiler/*.hpp", "Decompiler/Node/*.hpp")
+    add_headerfiles("(Decompiler/*.hpp)", "(Decompiler/Node/*.hpp)")
     add_includedirs(".", {public = true})
     add_deps("Pex")
 
